@@ -1,4 +1,4 @@
-package com.example.mycompose
+package com.example.rpgapp
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData

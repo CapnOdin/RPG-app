@@ -1,6 +1,5 @@
-package com.example.mycompose
+package com.example.rpgapp
 
-import android.util.Log
 import java.time.LocalDateTime
 import java.util.ArrayList
 import java.util.concurrent.ThreadLocalRandom

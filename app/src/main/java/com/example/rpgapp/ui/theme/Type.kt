@@ -1,4 +1,4 @@
-package com.example.mycompose.ui.theme
+package com.example.rpgapp.ui.theme
 
 import androidx.compose.material.Typography
 import androidx.compose.ui.text.TextStyle
