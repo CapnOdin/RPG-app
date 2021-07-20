@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.runtime.*
@@ -31,6 +32,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.example.rpgapp.ui.theme.MyComposeTheme
 import org.json.JSONObject
 import java.util.*
+import kotlin.math.floor
 
 //var file: File = null
 
@@ -122,6 +125,9 @@ fun HomeScreen(/*...*/) {
 					}
 					*/
 					items(1) {
+						CharacterStats()
+					}
+					items(1) {
 						TitleCounter("Loaded", loaded, min = -1, max = 1)
 					}
 					items(1) {
@@ -180,6 +186,75 @@ fun InfoBox() {
 @Composable
 fun CharacterPage(character: JSONObject) {
 
+}
+
+@Composable
+fun CharacterStats() {
+	Column() {
+		CharacterStat("STR", 0)
+		CharacterStat("DEX", 0)
+		CharacterStat("CON", 0)
+		CharacterStat("INT", 0)
+		CharacterStat("WIS", 0)
+		CharacterStat("CHA", 0)
+	}
+}
+
+fun abilityToModifier(ability: Int): Int {
+	return (ability - 10) / 2
+}
+
+@Composable
+fun CharacterStat(statName: String, value: Int) {
+	var ability by remember { mutableStateOf("$value") }
+	var modifierVal by remember { mutableStateOf("${abilityToModifier(value)}") }
+	var bonus by remember { mutableStateOf("$value") }
+	Row {
+		TextField(
+			value = ability,
+			onValueChange = {
+				ability = it
+				if (ability.length > 2) {
+					ability = ability.subSequence(0, 2) as String
+				}
+				try {
+					modifierVal = abilityToModifier(ability.toInt() + bonus.toInt()).toString()
+				} catch (e: Exception) {
+
+				}
+			},
+			label = { Text(statName) },
+			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+			singleLine = true,
+			modifier = Modifier.padding(5.dp).width(60.dp)
+		)
+		TextField(
+			value = modifierVal,
+			onValueChange = {},
+			label = { Text("MOD") },
+			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+			singleLine = true,
+			modifier = Modifier.padding(5.dp).width(60.dp)
+		)
+		TextField(
+			value = bonus,
+			onValueChange = {
+				bonus = it
+				if (bonus.length > 2) {
+					bonus = bonus.subSequence(0, 2) as String
+				}
+				try {
+					modifierVal = abilityToModifier(ability.toInt() + bonus.toInt()).toString()
+				} catch (e: Exception) {
+
+				}
+			},
+			label = { Text("ADD") },
+			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+			singleLine = true,
+			modifier = Modifier.padding(5.dp).width(60.dp)
+		)
+	}
 }
 
 fun getDiceDrawable(dice: String): Int {
