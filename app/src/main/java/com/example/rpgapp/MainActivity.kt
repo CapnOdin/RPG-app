@@ -1,11 +1,13 @@
 package com.example.rpgapp
 
-import android.content.res.Configuration.*
+import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import android.os.Bundle
+import android.provider.UserDictionary
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -18,9 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
-import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,39 +32,29 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rpgapp.gui.GuiElementComposable
 import com.example.rpgapp.ui.theme.MyComposeTheme
-import org.json.JSONObject
-import java.util.*
-import kotlin.math.floor
-
-//var file: File = null
 
 class MainActivity : ComponentActivity() {
-
-	//var character = JSONObject("")
-
+	
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		/*
-		val dice: Dice = Dice(20)
-		val res = dice.roll(100000)
-		for(i in 1..20) {
-			var n = res.diceRolls.count { it == i }
-			Log.d(TAG, "$i: $n  ${n - 5000}")
+		val vm: MyViewModel by viewModels()
+		
+		vm.gui.load(this)
+		
+		for(entry in vm.gui.expressionStates.entries) {
+			entry.value.setExpression(entry.value.exp, vm.gui.expressionStates)
+			UserDictionary.Words.addWord(this, entry.value.name, 255, null, null)
 		}
-		*/
-		//file = File(filesDir, "character.json")
-
-		//character = JSONObject(file.readText())
-
+		
 		setContent {
-			HomeScreen()
+			HomeScreen(vm, onClick = {currentFocus?.clearFocus()})
 		}
 	}
 
@@ -72,77 +62,25 @@ class MainActivity : ComponentActivity() {
 		super.onPause()
 		//file.writeText(character.toString(4))
 	}
+	
+	companion object {
+		private const val TAG = "MainActivity"
+	}
 }
 
-val TAG = "compose fun"
-
-//private val a = R.drawable.ic_d20
-//private val c = mutableStateOf(a)
-private val c = mutableStateOf(R.drawable.ic_d20)
-private val m = mutableStateOf(
-	Modifier
-		.height(50.dp)
-		.width(50.dp))
-
-//val diceRolls = ArrayList<Dice.DiceRoll>()
-
-val diceRolls = ArrayList<Dice.MultiDiceRoll>()
-
-val diceRollsCurrent = mutableStateOf(List<Dice.MultiDiceRoll>(0) { Dice.MultiDiceRoll() })
-
-var combinedDiceRoll = Dice.MultiDiceRoll()
-
-var ammo = mutableStateOf(0)
-var loaded = mutableStateOf(0)
-var gunpowder = mutableStateOf(0)
-var misc1 = mutableStateOf(0)
-var misc2 = mutableStateOf(0)
-
-//var infoVisible = mutableStateOf(false)
-//var infoContent = mutableStateOf((() -> {}))
-
 @Composable
-fun HomeScreen(/*...*/) {
+fun HomeScreen(vm: MyViewModel, onClick: () -> Unit = {}) {
 	val materialBlue700 = Color(0xFF1976D2)
-	var clicks by remember{mutableStateOf(0)}
-	Box() {
+	Box {
 		Scaffold(
-			drawerContent = { MyDrawer() },
+			drawerContent = { MyDrawer(vm) },
 			topBar = {
-				TopAppBar(title = { Text("TopAppBar") }, backgroundColor = materialBlue700)
+				TopAppBar(title = { Text(stringResource(R.string.app_name)) }, backgroundColor = materialBlue700)
 			},
 			floatingActionButtonPosition = FabPosition.End,
-			floatingActionButton = { DiceMenuButtonTest(buttonSize = 50.dp) },
+			floatingActionButton = { DiceMenuButtonTest(vm, buttonSize = 50.dp) },
 			content = {
-				LazyColumn(
-					horizontalAlignment = Alignment.CenterHorizontally,
-					modifier = Modifier.fillMaxWidth()
-				) {
-					/*
-					items(5) {
-						NewsStory()
-						ClickCounter(clicks, onClick = { clicks++ })
-					}
-					*/
-					items(1) {
-						CharacterStats()
-					}
-					items(1) {
-						TitleCounter("Loaded", loaded, min = -1, max = 1)
-					}
-					items(1) {
-						TitleCounter("Ammo", ammo, min = 0)
-					}
-					items(1) {
-						TitleCounter("Gunpowder", gunpowder, min = 0)
-					}
-					items(1) {
-						TitleCounter("Misc 1", misc1)
-					}
-					items(1) {
-						TitleCounter("Misc 2", misc2)
-					}
-				}
+				MainGui(vm, onClick = onClick)
 			}
 		)
 		//InfoBox()
@@ -150,15 +88,24 @@ fun HomeScreen(/*...*/) {
 }
 
 @Composable
-fun TitleCounter(text: String, extcount: MutableState<Int>, modifier: Modifier = Modifier, min: Int = -999999, max: Int = 999999) {
-	Column(
-		horizontalAlignment = Alignment.CenterHorizontally,
-		modifier = modifier.padding(10.dp)
-	) {
-		Text(text = text)
-		AdjustableCounter(extcount, min = min, max = max, modifier = modifier)
+fun MainGui(vm: MyViewModel, onClick: () -> Unit = {}) {
+	val list by remember {mutableStateOf(vm.gui.guiElements.toList())}
+	MyComposeTheme {
+		// A surface container using the 'background' color from the theme
+		Surface(color = MaterialTheme.colors.background) {
+			LazyColumn(
+				horizontalAlignment = Alignment.CenterHorizontally,
+				modifier = Modifier.fillMaxSize().clickable(onClick = {onClick()})
+			) {
+				itemsIndexed(list) { _, item ->
+					GuiElementComposable(vm, item)
+				}
+			}
+		}
 	}
 }
+
+const val TAG = "compose fun"
 
 /*
 @Composable
@@ -183,80 +130,6 @@ fun InfoBox() {
 }
 */
 
-@Composable
-fun CharacterPage(character: JSONObject) {
-
-}
-
-@Composable
-fun CharacterStats() {
-	Column() {
-		CharacterStat("STR", 0)
-		CharacterStat("DEX", 0)
-		CharacterStat("CON", 0)
-		CharacterStat("INT", 0)
-		CharacterStat("WIS", 0)
-		CharacterStat("CHA", 0)
-	}
-}
-
-fun abilityToModifier(ability: Int): Int {
-	return (ability - 10) / 2
-}
-
-@Composable
-fun CharacterStat(statName: String, value: Int) {
-	var ability by remember { mutableStateOf("$value") }
-	var modifierVal by remember { mutableStateOf("${abilityToModifier(value)}") }
-	var bonus by remember { mutableStateOf("$value") }
-	Row {
-		TextField(
-			value = ability,
-			onValueChange = {
-				ability = it
-				if (ability.length > 2) {
-					ability = ability.subSequence(0, 2) as String
-				}
-				try {
-					modifierVal = abilityToModifier(ability.toInt() + bonus.toInt()).toString()
-				} catch (e: Exception) {
-
-				}
-			},
-			label = { Text(statName) },
-			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-			singleLine = true,
-			modifier = Modifier.padding(5.dp).width(60.dp)
-		)
-		TextField(
-			value = modifierVal,
-			onValueChange = {},
-			label = { Text("MOD") },
-			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-			singleLine = true,
-			modifier = Modifier.padding(5.dp).width(60.dp)
-		)
-		TextField(
-			value = bonus,
-			onValueChange = {
-				bonus = it
-				if (bonus.length > 2) {
-					bonus = bonus.subSequence(0, 2) as String
-				}
-				try {
-					modifierVal = abilityToModifier(ability.toInt() + bonus.toInt()).toString()
-				} catch (e: Exception) {
-
-				}
-			},
-			label = { Text("ADD") },
-			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-			singleLine = true,
-			modifier = Modifier.padding(5.dp).width(60.dp)
-		)
-	}
-}
-
 fun getDiceDrawable(dice: String): Int {
 	return when(dice) {
 		"d4" -> R.drawable.ic_d4_abs
@@ -265,7 +138,7 @@ fun getDiceDrawable(dice: String): Int {
 		"d10" -> R.drawable.ic_d10_abs
 		"d12" -> R.drawable.ic_d12_abs
 		"d20" -> R.drawable.ic_d20_abs
-		else -> R.drawable.ic_launcher_foreground
+		else -> R.drawable.ic_porcupine
 	}
 }
 
@@ -281,13 +154,10 @@ fun getDiceDrawable(dice: Int): Int {
 	}
 }
 
-var dicemenuState = mutableStateOf(listOf(""))
-var dicemenuMulti = mutableStateOf(false)
-
 @Composable
-fun DiceMenuButtonTest(buttonSize: Dp = 50.dp, buttonSpacing: Dp = 6.dp) {
-	var list by dicemenuState
-	var multi by dicemenuMulti
+fun DiceMenuButtonTest(vm: MyViewModel, buttonSize: Dp = 50.dp, buttonSpacing: Dp = 6.dp) {
+	var list by vm.diceMenuState
+	var multi by vm.diceMenuMulti
 
 	Box(
 		contentAlignment = Alignment.BottomEnd
@@ -302,19 +172,19 @@ fun DiceMenuButtonTest(buttonSize: Dp = 50.dp, buttonSpacing: Dp = 6.dp) {
 				contentPadding = PaddingValues(top = buttonSize, bottom = buttonSize / 2 + buttonSpacing),
 				modifier = Modifier.animateContentSize()
 			) {
-				itemsIndexed(list) { index, item ->
+				itemsIndexed(list) { _, item ->
 					when (item) {
 						"multi" -> {
-							MyFloatButton() {
+							MyFloatButton {
 								ImageButton(
 									R.drawable.ic_rolling_dices,
 									modifier = Modifier.requiredSize(buttonSize),
 									onClick = {
 										if(multi) {
-											combinedDiceRoll.roll()
-											diceRolls.add(0, combinedDiceRoll)
-											diceRollsCurrent.value = diceRolls.toList()
-											combinedDiceRoll = Dice.MultiDiceRoll()
+											vm.combinedDiceRoll.roll()
+											vm.diceRolls.add(0, vm.combinedDiceRoll)
+											vm.diceRollsCurrent.value = vm.diceRolls.toList()
+											vm.combinedDiceRoll = Dice.MultiDiceRoll()
 											list = listOf("+")
 											multi = false
 										} else {
@@ -327,7 +197,7 @@ fun DiceMenuButtonTest(buttonSize: Dp = 50.dp, buttonSpacing: Dp = 6.dp) {
 						else -> {
 							if(item.matches(Regex("d\\d+"))) {
 								//MyFloatButton() { MultiDiceButton(item.substring(1).toInt(), multi, onClick = {}, modifier = Modifier.requiredSize(buttonSize)) }
-								FloatMultiDiceButton(item.substring(1).toInt(), multi, onClick = {}, modifier = Modifier.requiredSize(buttonSize))
+								FloatMultiDiceButton(vm, item.substring(1).toInt(), multi, onClick = {}, modifier = Modifier.requiredSize(buttonSize))
 							}
 						}
 					}
@@ -336,26 +206,26 @@ fun DiceMenuButtonTest(buttonSize: Dp = 50.dp, buttonSpacing: Dp = 6.dp) {
 		}
 
 		if(list.size < 2) {
-			MyFloatButton() {
+			MyFloatButton {
 				ImageButton(
 					R.drawable.ic_cubes,
 					modifier = Modifier.requiredSize(buttonSize),
 					onClick = {
 						list = listOf("d4", "d6", "d8", "d10", "d12", "d20", "multi", "")
 						multi = false
-						Log.d(TAG, list.toString());
+						Log.d(TAG, list.toString())
 					}
 				)
 			}
 		} else {
-			MyFloatButton() {
+			MyFloatButton {
 				ImageButton(
 					R.drawable.ic_plain_arrow,
 					modifier = Modifier.requiredSize(buttonSize),
 					onClick = {
 						list = listOf("")
 						multi = false
-						Log.d(TAG, list.toString());
+						Log.d(TAG, list.toString())
 					}
 				)
 			}
@@ -363,6 +233,7 @@ fun DiceMenuButtonTest(buttonSize: Dp = 50.dp, buttonSpacing: Dp = 6.dp) {
 	}
 }
 
+/*
 @Composable
 fun DiceMenuButton() {
 	var list by remember {mutableStateOf(listOf("+"))}
@@ -377,7 +248,7 @@ fun DiceMenuButton() {
 		}
 	) {
 		LazyColumn(horizontalAlignment = Alignment.End) {
-			itemsIndexed(list) { index, item ->
+			itemsIndexed(list) { _, item ->
 				when (item) {
 					"d4" -> {
 						MultiDiceButton(4, multi, onClick = {})
@@ -444,6 +315,7 @@ fun DiceMenuButton() {
 		}
 	}
 }
+*/
 
 @Composable
 fun MyFloatButton(
@@ -469,7 +341,7 @@ fun MyFloatButton(
 }
 
 @Composable
-fun FloatMultiDiceButton(sides: Int, multi: Boolean, onClick: (sides: Int) -> Unit, modifier: Modifier = Modifier) {
+fun FloatMultiDiceButton(vm: MyViewModel, sides: Int, multi: Boolean, onClick: (sides: Int) -> Unit, modifier: Modifier = Modifier) {
 	var clicks by remember{mutableStateOf(0)}
 	if(multi) {
 		Row(
@@ -487,49 +359,21 @@ fun FloatMultiDiceButton(sides: Int, multi: Boolean, onClick: (sides: Int) -> Un
 			MyFloatButton(
 				onClick = {
 					clicks++
-					combinedDiceRoll.add(Dice(sides))
+					vm.combinedDiceRoll.add(Dice(sides))
 				}
 			) {
 				DiceImage(getDiceDrawable(sides),modifier = modifier)
 			}
 		}
 	} else {
-		MyFloatButton() {
-			DiceButton(sides, onClick = {}, modifier = modifier)
+		MyFloatButton {
+			DiceButton(vm, sides, onClick = {}, modifier = modifier)
 		}
 	}
 }
 
-
 @Composable
-fun ClickCounter(clicks: Int, onClick: () -> Unit) {
-	Button(onClick = onClick) {
-		Text("I've been clicked $clicks times")
-	}
-}
-
-@Composable
-fun MultiDiceButton(sides: Int, multi: Boolean, onClick: (sides: Int) -> Unit, modifier: Modifier = Modifier) {
-	var clicks by remember{mutableStateOf(0)}
-	if(multi) {
-		Row() {
-			Text("$clicks:", modifier = Modifier.align(Alignment.CenterVertically), fontSize = 15.sp)
-			ImageButton(
-				getDiceDrawable(sides),
-				onClick = {
-					clicks++
-					combinedDiceRoll.add(Dice(sides))
-				},
-				modifier = modifier
-			)
-		}
-	} else {
-		DiceButton(sides, onClick = {}, modifier = modifier)
-	}
-}
-
-@Composable
-fun DiceButton(sides: Int, onClick: (sides: Int) -> Unit, modifier: Modifier = Modifier) {
+fun DiceButton(vm: MyViewModel, sides: Int, onClick: (sides: Int) -> Unit, modifier: Modifier = Modifier) {
 	val context = LocalContext.current
 	var rotate by remember {mutableStateOf(false)}
 	val rotationAngle by animateFloatAsState(
@@ -543,8 +387,8 @@ fun DiceButton(sides: Int, onClick: (sides: Int) -> Unit, modifier: Modifier = M
 			val diceRoll = Dice.MultiDiceRoll()
 			diceRoll.add(dice)
 			diceRoll.roll()
-			diceRolls.add(0, diceRoll)
-			diceRollsCurrent.value = diceRolls.toList()
+			vm.diceRolls.add(0, diceRoll)
+			vm.diceRollsCurrent.value = vm.diceRolls.toList()
 			Toast.makeText(context, diceRoll.diceRolls[0].toString(), Toast.LENGTH_SHORT).show()
 		},
 		modifier = modifier
@@ -576,14 +420,14 @@ fun DiceImage(dice: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun MyDrawer() {
+fun MyDrawer(vm: MyViewModel) {
 	if(LocalConfiguration.current.orientation == ORIENTATION_PORTRAIT) {
 		Column(
 			modifier = Modifier,
 			verticalArrangement = Arrangement.SpaceAround
 		) {
 			MyMenu()
-			DiceRollHistory()
+			DiceRollHistory(vm)
 		}
 	} else {
 		Row(
@@ -591,7 +435,7 @@ fun MyDrawer() {
 			horizontalArrangement = Arrangement.SpaceAround
 		) {
 			MyMenu(modifier = Modifier.weight(1.0f, true))
-			DiceRollHistory(modifier = Modifier.weight(1.0f, true))
+			DiceRollHistory(vm, modifier = Modifier.weight(1.0f, true))
 		}
 	}
 }
@@ -636,8 +480,8 @@ fun MenuButton(icon: Int, title: String, onClick: () -> Unit, modifier: Modifier
 }
 
 @Composable
-fun DiceRollHistory(modifier: Modifier = Modifier) {
-	val list by diceRollsCurrent
+fun DiceRollHistory(vm: MyViewModel, modifier: Modifier = Modifier) {
+	val list by vm.diceRollsCurrent
 	Card(
 		modifier = modifier
 			.fillMaxHeight()
@@ -646,63 +490,13 @@ fun DiceRollHistory(modifier: Modifier = Modifier) {
 		backgroundColor = Color.LightGray,
 		border = BorderStroke(2.dp, Color.LightGray)
 	) {
-		LazyColumn() {
-			itemsIndexed(list) { index, item ->
+		LazyColumn {
+			itemsIndexed(list) { _, item ->
 				RollHistoryElement(item)
 			}
 		}
 	}
 }
-
-/*
-@Composable
-fun DiceRollHistory(modifier: Modifier = Modifier) {
-	val list by diceRollsCurrent
-	Card(
-		modifier = modifier
-			.fillMaxHeight()
-			.fillMaxWidth()
-			.padding(2.dp),
-		backgroundColor = Color.LightGray,
-		border = BorderStroke(2.dp, Color.LightGray)
-	) {
-		LazyColumn() {
-			itemsIndexed(list) { index, item ->
-				Box(
-					modifier = Modifier.padding(2.dp)
-				) {
-					Column(
-						modifier = Modifier
-							.wrapContentHeight()
-							.fillMaxWidth()
-							.padding(horizontal = 12.dp, vertical = 2.dp)
-							.background(
-								color = Color(0xFF93B4D5),
-								shape = RoundedCornerShape(5.dp)
-							)
-					) {
-						for (d in item.diceRolls) {
-							Row() {
-								DiceImage(
-									getDiceDrawable(d.sides),
-									Modifier
-										.requiredSize(25.dp)
-										.align(Alignment.CenterVertically)
-								)
-								Text(
-									d.toString(),
-									fontSize = 17.sp,
-									modifier = Modifier.align(Alignment.CenterVertically)
-								)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-*/
 
 @Composable
 fun RollHistoryElement(multiDiceRoll: Dice.MultiDiceRoll, modifier: Modifier = Modifier) {
@@ -730,7 +524,7 @@ fun RollHistoryElement(multiDiceRoll: Dice.MultiDiceRoll, modifier: Modifier = M
 				}
 		) {
 			for (d in multiDiceRoll.diceRolls) {
-				Row() {
+				Row {
 					DiceImage(
 						getDiceDrawable(d.sides),
 						Modifier
@@ -757,8 +551,8 @@ fun AlignedTextRow(textSegments: List<String>, segments: List<Int>, size: Float)
 				.width((segments[0] * size).dp)
 				.align(Alignment.CenterVertically))
 		Row(modifier = Modifier.weight(1f, true)) {
-			for ((i, text) in middle.withIndex()) {
-				val modifier = Modifier.align(Alignment.CenterVertically)
+			for(text in middle) {
+				//val modifier = Modifier.align(Alignment.CenterVertically)
 				Text(
 					text = text,
 					fontSize = (17 * size).sp,
@@ -780,97 +574,13 @@ fun AlignedTextRow(textSegments: List<String>, segments: List<Int>, size: Float)
 	}
 }
 
-@Composable
-fun AdjustableCounter(extcount: MutableState<Int>, modifier: Modifier = Modifier, min: Int = -999999, max: Int = 999999) {
-	var count by extcount
-	Row(
-		modifier = modifier.background(
-			color = Color(0xFF93B4D5),
-			shape = RoundedCornerShape(5.dp)
-		)
-	) {
-		ImageButton(
-			drawable = R.drawable.ic_plain_arrow_down,
-			onClick = {
-				if(count > min) {
-					count -= 1
-				}
-			},
-			modifier = Modifier.align(Alignment.CenterVertically)
-		)
-		Text(
-			text = count.toString(),
-			fontSize = 17.sp,
-			modifier = Modifier.align(Alignment.CenterVertically)
-		)
-		ImageButton(
-			drawable = R.drawable.ic_plain_arrow_up,
-			onClick = {
-				if(count < max) {
-					count += 1
-				}
-			},
-			modifier = Modifier.align(Alignment.CenterVertically)
-		)
-	}
-}
-
-
-
-
-
-@Composable
-fun Greeting(name: String) {
-	Text(text = "Hello $name!")
-}
-
-@Composable
-fun NewsStory() {
-	MaterialTheme {
-		Column(
-			modifier = Modifier.padding(16.dp)
-		) {
-			Image(
-				painter = painterResource(R.drawable.header),
-				contentDescription = null,
-				modifier = Modifier
-					.height(180.dp)
-					.fillMaxWidth()
-					.clip(shape = RoundedCornerShape(4.dp)),
-				contentScale = ContentScale.Crop
-			)
-			Spacer(Modifier.height(16.dp))
-			
-			Text(
-				"A day wandering through the sandhills " +
-						"in Shark Fin Cove, and a few of the " +
-						"sights I saw",
-				style = typography.h6,
-				maxLines = 2,
-				overflow = TextOverflow.Ellipsis)
-			Text("Davenport, California",
-				style = typography.body2)
-			Text("December 2018",
-				style = typography.body2)
-			
-		}
-	}
-}
-
-
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
 	MyComposeTheme {
 		// A surface container using the 'background' color from the theme
 		Surface(color = MaterialTheme.colors.background) {
-			Greeting("Android")
+			//Greeting("Android")
 		}
 	}
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview2() {
-	HomeScreen()
 }

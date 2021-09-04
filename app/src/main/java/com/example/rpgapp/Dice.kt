@@ -15,12 +15,12 @@ class Dice(val sides: Int) {
 		return DiceRoll(sides, rolls)
 	}
 	
-	class MultiDiceRoll() {
+	class MultiDiceRoll {
 		val dices = HashMap<Int, Dice>()
 		val diceSides = HashMap<Int, Int>()
 		val diceRolls = ArrayList<DiceRoll>()
 		
-		val time = LocalDateTime.now()
+		val time: LocalDateTime = LocalDateTime.now()
 		
 		fun add(dice: Dice) {
 			if(!diceSides.containsKey(dice.sides)) {
@@ -48,7 +48,7 @@ class Dice(val sides: Int) {
 	
 	data class DiceRoll(val sides: Int = 0, val diceRolls: ArrayList<Int> = ArrayList<Int>()) {
 		val sum = diceRolls.sum()
-		val time = LocalDateTime.now()
+		val time: LocalDateTime = LocalDateTime.now()
 		
 		init {
 			diceRolls.sort()
